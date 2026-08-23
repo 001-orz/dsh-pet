@@ -91,6 +91,16 @@ dsh plugin --profile web add @001-orz/dsh-pet
 
 > 说明：插件安装即用，上述配置均为可选；`size`/`position` 的浏览器侧配置化正在规划中。
 
+## 🔐 密钥配置（收口）
+
+桌宠的「余额 / 已消耗」功能需要 DeepSeek 密钥，但**密钥永不进前端**：浏览器侧只调同源的 `/pet/balance`、`/pet/last-turn`，密钥只在插件宿主侧（`lib/index.js` 的 `resolveApiKey`）读取，且任何分支都不回显。提供三种注入方式（按推荐顺序）：
+
+1. **DSH 凭据服务（推荐）**：在 DSH 里配置凭据 `DEEPSEEK_API_KEY`，插件通过 `ctx.credentials.resolve('DEEPSEEK_API_KEY')` 读取。最干净、不落磁盘、不进仓库。
+2. **环境变量兜底**：`DEEPSEEK_API_KEY=sk-xxx` 注入到 DSH 进程环境（桌面版可写进 profile 启动脚本 / `.env`，并确保 `.env*` 已被 gitignore，绝不提交）。
+3. **强制仅凭据（可选加固）**：设 `ALLOW_ENV_KEY=false`（取值 `0`/`false`/`no`/`off` 均可），插件将**拒绝**环境变量兜底，密钥只能来自 DSH 凭据服务。生产环境建议开启，从代码层面杜绝"env 里乱塞 key"。默认 `true` 保持兼容。
+
+> ⚠️ 密钥安全红线：不要把 `sk-` 写进任何前端文件、不要存 `sessionStorage`/`localStorage`、不要把 `.env` 提交到仓库（仓库 `.gitignore` 已含 `.env*`）。需要轮转 Key 时，直接在 DeepSeek 平台删旧建新，并更新上述凭据/环境变量即可。
+
 ## 🗑️ 卸载
 
 ```sh

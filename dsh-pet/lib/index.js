@@ -80,16 +80,32 @@ let balanceCache = null;               // { ok:true, totalBalance, currency, upd
 let balanceCacheAt = 0;
 
 /**
- * 从 DSH 凭据服务读取 DEEPSEEK_API_KEY，环境变量兜底。
- * @returns {Promise<string|null>} 密钥或 null
+ * 密钥收口（A）：是否允许用裸环境变量 DEEPSEEK_API_KEY 兜底。
+ * - 默认 true：兼容"只在 env 里配了 key"的旧部署，余额功能不中断。
+ * - 设为 false（如 ALLOW_ENV_KEY=0/ false/ no）：强制密钥只能来自 DSH 凭据服务，
+ *   从代码层面杜绝"在 env 里乱塞 key"的路径；此时凭据服务未配会明确报 NO_API_KEY。
+ * 前端从不持有密钥（只调同源 /pet/balance），本开关只约束宿主侧兜底来源。
+ */
+function allowEnvKey() {
+  const v = process.env.ALLOW_ENV_KEY;
+  if (v === undefined) return true;
+  return !/^(0|false|no|off)$/i.test(String(v).trim());
+}
+
+/**
+ * 从 DSH 凭据服务读取 DEEPSEEK_API_KEY，环境变量兜底（受 ALLOW_ENV_KEY 约束）。
+ * @returns {Promise<{key:string|null, source:string}>} 密钥与来源（凭据服务 / 环境变量 / 无）
  */
 async function resolveApiKey(ctx) {
   try {
     const cred = await ctx.credentials.resolve('DEEPSEEK_API_KEY');
-    if (cred && cred.value) return String(cred.value);
-  } catch { /* 凭据服务不可用时走环境变量 */ }
-  const env = process.env.DEEPSEEK_API_KEY;
-  return env && env.length > 0 ? env : null;
+    if (cred && cred.value) return { key: String(cred.value), source: 'credentials' };
+  } catch { /* 凭据服务不可用时走环境变量（若允许） */ }
+  if (allowEnvKey()) {
+    const env = process.env.DEEPSEEK_API_KEY;
+    if (env && env.length > 0) return { key: env, source: 'env' };
+  }
+  return { key: null, source: 'none' };
 }
 
 /** 从 balance_infos[] 挑一个主展示项：优先 CNY 且余额>0，其次有余额的，再次 CNY，最后第一个 */
@@ -110,9 +126,12 @@ function pickBalanceInfo(infos) {
  * @returns {Promise<{ok:boolean, code?:string, message?:string, totalBalance?:number, currency?:string, data?:object}>}
  */
 async function fetchBalance(ctx) {
-  const apiKey = await resolveApiKey(ctx);
+  const { key: apiKey, source } = await resolveApiKey(ctx);
   if (!apiKey) {
-    return { ok: false, code: 'NO_API_KEY', message: '未配置 DEEPSEEK_API_KEY（DSH 凭据或环境变量）' };
+    const why = allowEnvKey()
+      ? '未配置 DEEPSEEK_API_KEY（DSH 凭据或环境变量）'
+      : '未配置 DEEPSEEK_API_KEY（ALLOW_ENV_KEY=false，仅允许 DSH 凭据服务注入）';
+    return { ok: false, code: 'NO_API_KEY', message: why };
   }
   let lastErr = null;
   for (let attempt = 0; attempt < 2; attempt++) {
