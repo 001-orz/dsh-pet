@@ -38,6 +38,21 @@ npm-debug.log*
 # ── 临时/备份目录 ──
 temp/
 
+# ── 密钥 / 凭证（绝不入库） ──
+.env*
+.credentials*
+*.key
+*.pem
+.dsh-pet-usage.json
+
+# ── 调试产物（本地排查用，不入库） ──
+.netcheck
+.probe
+.push
+*.netcheck
+*.probe
+*.push
+
 # ── dsh-pet 源码说明 ──
 # dsh-pet/lib/*.js 是手写的运行时源码（非 tsdown 构建产物），
 # 必须入库并被 npm 发布（package.json 的 files 含 lib）。请勿忽略。
