@@ -1,0 +1,67 @@
+{
+  "name": "@001-orz/dsh-pet",
+  "version": "0.1.4",
+  "description": "A floating desktop pet for the DeepSeek Harness Web UI: idle breathing, occasional direction turns, random actions, and screen wandering.",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "desktop-pet",
+    "pet",
+    "floating-widget",
+    "web-ui",
+    "cordis",
+    "react"
+  ],
+  "author": "001-orz",
+  "homepage": "https://github.com/001-orz/dsh-pet#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/001-orz/dsh-pet.git"
+  },
+  "bugs": {
+    "url": "https://github.com/001-orz/dsh-pet/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "assets/thumb",
+    "cordis.patch.yml"
+  ],
+  "scripts": {
+    "prepack": "node scripts/prepack-check.js"
+  },
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-home-paths": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-host-webserver": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.0-rc.6",
+    "react": "^18.2.0"
+  }
+}
