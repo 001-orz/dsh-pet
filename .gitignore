@@ -28,13 +28,21 @@ node_modules/
 npm-debug.log*
 *.tgz
 
+# ── 密钥 / 凭证（绝不入库） ──
+.env*
+.credentials*
+*.key
+*.pem
+.dsh-pet-usage.json
+
 # ── 临时/备份目录 ──
 temp/
 
-# ── dsh-pet lib ──
-# 注意：本仓库的 dsh-pet/lib/*.js 是手写的运行时源码（非 tsdown 构建产物），
+# ── dsh-pet 源码说明 ──
+# dsh-pet/lib/*.js 是手写的运行时源码（非 tsdown 构建产物），
 # 必须入库并被 npm 发布（package.json 的 files 含 lib）。请勿忽略。
-# src/ 是等价的 TypeScript 版，供想改源码者参考；两者并存、均跟踪。
+# 早期上游的 TypeScript 源码（src/）与构建链（tsconfig/tsdown/eslint）
+# 已移除：当前 lib/ 为 0.2.1 手写版，是插件的唯一源码与发布内容。
 
 # ── IDE / 编辑器 ──
 .idea/

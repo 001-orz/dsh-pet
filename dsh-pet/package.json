@@ -14,6 +14,9 @@
     "react"
   ],
   "author": "001-orz",
+  "contributors": [
+    "PC2005-cloud (original upstream author of dsh-pet)"
+  ],
   "homepage": "https://github.com/001-orz/dsh-pet#readme",
   "repository": {
     "type": "git",

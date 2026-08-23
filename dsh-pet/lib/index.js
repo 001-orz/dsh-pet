@@ -30,6 +30,7 @@ import { createReadStream, existsSync, readFileSync, writeFileSync } from 'node:
 import { stat } from 'node:fs/promises';
 import { join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import os from 'node:os';
 // 解析 DSH 主目录（$DSH_HOME，默认 ~/.dsh）。
 // 官方包 @deepseek-ai/dsh-home-paths 在某些 profile 未安装（被 dsh 重装清除），
 // 此处做容错兜底：找不到包时回退到默认主目录，避免整包加载失败导致 dsh 打不开。
@@ -41,9 +42,10 @@ try {
   resolveDshHome = () => {
     if (process.env.DSH_HOME) return process.env.DSH_HOME;
     if (process.env.DSH_PET_TEST_HOME) return process.env.DSH_PET_TEST_HOME;
-    // 桌面版 DSH Desktop（Windows）默认数据目录
+    // 桌面版 DSH Desktop（Windows）默认数据目录（不硬编码用户名，兼容任意机器）
     if (process.platform === 'win32') {
-      return 'C:/Users/HP/AppData/Roaming/dsh-desktop/harness';
+      const appData = process.env.APPDATA || join(os.homedir(), 'AppData', 'Roaming');
+      return join(appData, 'dsh-desktop', 'harness');
     }
     return (process.env.HOME || '') + '/.dsh';
   };
