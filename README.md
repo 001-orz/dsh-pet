@@ -1,9 +1,9 @@
 # dsh-pet 🐾
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/dsh-pet"><img alt="npm version" src="https://img.shields.io/npm/v/dsh-pet?label=npm&color=blue"></a>
-  <a href="https://www.npmjs.com/package/dsh-pet"><img alt="npm monthly downloads" src="https://img.shields.io/npm/dm/dsh-pet?label=%E6%9C%88%E4%B8%8B%E8%BD%BD&color=brightgreen"></a>
-  <a href="https://www.npmjs.com/package/dsh-pet"><img alt="total downloads" src="https://img.shields.io/npm/dt/dsh-pet?label=%E6%80%BB%E4%B8%8B%E8%BD%BD&color=success"></a>
+  <a href="https://www.npmjs.com/package/@001-orz/dsh-pet"><img alt="npm version" src="https://img.shields.io/npm/v/@001-orz/dsh-pet?label=npm&color=blue"></a>
+  <a href="https://www.npmjs.com/package/@001-orz/dsh-pet"><img alt="npm monthly downloads" src="https://img.shields.io/npm/dm/@001-orz/dsh-pet?label=%E6%9C%88%E4%B8%8B%E8%BD%BD&color=brightgreen"></a>
+  <a href="https://www.npmjs.com/package/@001-orz/dsh-pet"><img alt="total downloads" src="https://img.shields.io/npm/dt/@001-orz/dsh-pet?label=%E6%80%BB%E4%B8%8B%E8%BD%BD&color=success"></a>
   <a href="https://github.com/001-orz/dsh-pet"><img alt="stars" src="https://img.shields.io/github/stars/001-orz/dsh-pet?style=social"></a>
   <a href="https://github.com/001-orz/dsh-pet/blob/main/LICENSE"><img alt="license" src="https://img.shields.io/github/license/001-orz/dsh-pet?color=orange"></a>
   <a href="https://awesome-dsh-plugin.com"><img alt="awesome dsh plugin" src="https://awesome-dsh-plugin.com/badge.svg"></a>
@@ -17,6 +17,8 @@
 ---
 
 ## 🚀 快速开始（安装插件）
+
+> **前置要求**：已安装 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（提供 `dsh` 命令行），Node.js ≥ 18。
 
 ```sh
 dsh plugin --profile web add @001-orz/dsh-pet
