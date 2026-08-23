@@ -816,6 +816,23 @@ window.__ModuleLoader__.load({
 				const n = Number(v);
 				return isFinite(n) ? n.toFixed(2) : String(v);
 			};
+			// 峰谷种类 → 展示文案（与 host 端 getPeakKind 对应）：
+			//   peak 高峰 / weekend 周末低谷 / offpeak 工作日闲时
+			const PEAK_KIND_LABEL = {
+				peak: '高峰（烧钱中）',
+				weekend: '周末低谷（便宜）',
+				offpeak: '闲时（便宜）',
+			};
+			const PEAK_KIND_LINE = {
+				peak: '高峰时段，烧钱警告！',
+				weekend: '周末低谷，价格便宜~',
+				offpeak: '闲时时段，价格便宜~',
+			};
+			// 优先用 host 返回的 peakKind；老版本无该字段时回退到 isPeak 布尔
+			const peakKindOf = (bd) => {
+				if (bd && bd.peakKind && PEAK_KIND_LABEL[bd.peakKind]) return bd.peakKind;
+				return bd && bd.isPeak ? 'peak' : 'offpeak';
+			};
 			// 填充台词模板：{b}=余额 {u}=今日已用 {p}=峰/谷
 			const fillLine = () => {
 				if (!line) return '';
@@ -829,7 +846,7 @@ window.__ModuleLoader__.load({
 				const sym = info ? (CURRENCY_SYMBOL[info.currency] || (info.currency + ' ')) : '¥';
 				const b = ready && info ? sym + fmtMoney(displayTotal !== null ? displayTotal : info.total_balance) : '--';
 				const u = ready && typeof bubbleData.todayUsage === 'number' ? sym + bubbleData.todayUsage.toFixed(2) : '--';
-				const p = ready ? (bubbleData.isPeak ? '高峰时段，烧钱警告！' : '闲时时段，价格便宜~') : '';
+				const p = ready ? PEAK_KIND_LINE[peakKindOf(bubbleData)] : '';
 				return String(line)
 					.replace('{b}', b)
 					.replace('{u}', u)
@@ -879,7 +896,7 @@ window.__ModuleLoader__.load({
 					] }));
 					rows.push(h('div', { className: 'dsh-pet-bubble-row', children: [
 						h('span', { children: '时段' }),
-						h('b', { children: bubbleData.isPeak ? '高峰（烧钱中）' : '闲时（便宜）' }),
+						h('b', { children: PEAK_KIND_LABEL[peakKindOf(bubbleData)] }),
 					] }));
 					// 随机台词
 					if (line) {

@@ -213,7 +213,9 @@ function recordLedgerUsage(currentBalance) {
 // ============================================================================
 // 每轮对话消耗统计 —— 会话事件聚合 + 峰谷定价（仿照 dsh-whale-widget）
 // ============================================================================
-// 高峰时段：每日 9:00–12:00 和 14:00–18:00（北京时间）。
+// 峰谷时段（北京时间，UTC+8）：
+//   工作日（周一~周五）：高峰 9:00–12:00 与 14:00–18:00，其余为闲时。
+//   周末（周六、周日）：全部为低谷，无高峰时段（DeepSeek 2026 新计费政策）。
 // 定价：每百万 token 的 CNY 价格 [闲时价, 高峰价]。
 const PEAK_HOURS = [[9, 12], [14, 18]];
 const BASE_PRICE = { hit: [0.05, 0.1], miss: [1.5, 3.0], out: [4.5, 9.0] };
@@ -236,14 +238,38 @@ function priceFor(model) {
   return PRICING._default;
 }
 
-/** epoch 秒 → 北京时间小时，判断是否高峰 */
+/** epoch 秒 → 北京时间信息：{ hour, day }（day 为 UTC 星期 0=周日 … 6=周六，基于 +8h 偏移后的北京本地时间） */
+function beijingTime(timeSec) {
+  const d = new Date(Number(timeSec) * 1000 + 8 * 3600 * 1000); // 北京时间 = UTC+8
+  return { hour: d.getUTCHours(), day: d.getUTCDay() };
+}
+
+/** 是否北京时间的周六/周日（低谷，无高峰） */
+function isBeijingWeekend(timeSec) {
+  const { day } = beijingTime(timeSec);
+  return day === 0 || day === 6;
+}
+
+/** epoch 秒 → 是否高峰（仅工作日峰窗内才算高峰；周末恒为 false） */
 function isPeakTime(timeSec) {
   if (!isFinite(Number(timeSec))) return false;
-  const hour = new Date(Number(timeSec) * 1000 + 8 * 3600 * 1000).getUTCHours();
+  if (isBeijingWeekend(timeSec)) return false; // 周末全低谷
+  const { hour } = beijingTime(timeSec);
   for (const [start, end] of PEAK_HOURS) {
     if (hour >= start && hour < end) return true;
   }
   return false;
+}
+
+/**
+ * 峰谷种类，供 UI 展示：
+ *   'peak'    高峰（工作日峰窗内）
+ *   'weekend' 周末低谷（周六/周日，全天便宜）
+ *   'offpeak' 工作日闲时
+ */
+function getPeakKind(timeSec) {
+  if (isBeijingWeekend(timeSec)) return 'weekend';
+  return isPeakTime(timeSec) ? 'peak' : 'offpeak';
 }
 
 // ============================================================================
@@ -386,6 +412,7 @@ async function handleBalance(ctx, res) {
       todayUsage: 0,
       usageMode: 'ledger',
       isPeak: isPeakTime(Math.floor(now / 1000)),
+      peakKind: getPeakKind(Math.floor(now / 1000)),
       updatedAt: new Date().toISOString(),
     };
     // 精确模式优先：配置了平台令牌（DEEPSEEK_PLATFORM_TOKEN）就用官方用量接口，

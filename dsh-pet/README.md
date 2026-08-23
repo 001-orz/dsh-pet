@@ -79,6 +79,7 @@ dsh plugin --profile web add @001-orz/dsh-pet
 - **流畅切换**：双缓冲 video 交叉淡入，切换零空白帧
 - **无障碍友好**：支持 `prefers-reduced-motion`
 - **余额 & 已消耗（可选）**：左键点宠物头部弹出气泡，显示 DeepSeek 账户余额与「今日已用 / 最近一轮消耗」；每轮 token 按峰谷定价换算成本，跨天自动归档（本地账本 `$DSH_HOME/.dsh-pet-usage.json`）。密钥走 `ctx.credentials.resolve('DEEPSEEK_API_KEY')`，兜底环境变量，绝不回显
+  - **峰谷时段（北京时间）**：工作日（周一~周五）高峰为 9:00–12:00 与 14:00–18:00，其余为闲时；**周末（周六、周日）全天低谷、无高峰**（DeepSeek 2026 新计费政策）。气泡会显示「高峰（烧钱中）/ 周末低谷（便宜）/ 闲时（便宜）」。
 
 ## ⚙️ 配置
 
