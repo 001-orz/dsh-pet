@@ -69,8 +69,27 @@ window.__ModuleLoader__.load({
 			// 镜像改为在 switchTo 的 onReady 里按实际朝向给每个 video 设置 inline
 			// transform（见 onReady）：新视频按新朝向显示、旧视频保持自己的 transform
 			// 淡出，两者互不影响，facing 翻转时机因此无关紧要。
+			// ---- API 余额气泡（左键点脑袋 → 显示，右键 → 关闭）----
+			'.dsh-pet-bubble{position:absolute;left:50%;bottom:calc(100% + 16px);transform:translateX(-50%);width:max-content;max-width:min(280px,80vw);background:#fff;border:2px solid rgba(31,111,235,.28);border-radius:16px;box-shadow:0 8px 28px rgba(0,0,0,.22);padding:10px 14px 8px;font:12px/1.55 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;color:#333;pointer-events:auto;user-select:none;z-index:3;animation:dsh-pet-bubble-pop .16s ease-out}',
+			'.dsh-pet-bubble.flip{bottom:auto;top:calc(100% + 16px)}',
+			'.dsh-pet-bubble-tail{position:absolute;left:50%;bottom:-8px;width:13px;height:13px;background:#fff;transform:translateX(-50%) rotate(45deg);border-right:2px solid rgba(31,111,235,.28);border-bottom:2px solid rgba(31,111,235,.28);border-radius:2px}',
+			'.dsh-pet-bubble.flip .dsh-pet-bubble-tail{top:-8px;bottom:auto;border:none;border-left:2px solid rgba(31,111,235,.28);border-top:2px solid rgba(31,111,235,.28)}',
+			'.dsh-pet-bubble-title{font-weight:700;font-size:13px;color:#1f6feb;margin-bottom:6px;display:flex;align-items:center;gap:6px;white-space:nowrap}',
+			'.dsh-pet-bubble-row{display:flex;justify-content:space-between;align-items:baseline;gap:16px;margin:3px 0;white-space:nowrap}',
+			'.dsh-pet-bubble-row b{font-variant-numeric:tabular-nums;font-weight:600}',
+			'.dsh-pet-bubble-row b.amount{font-size:13px;color:#d97706}',
+			'.dsh-pet-bubble-msg{color:#c0392b;margin:2px 0}',
+			'.dsh-pet-bubble-hint{font-size:11px;color:#999;margin-top:7px;padding-top:6px;border-top:1px dashed #e5e7eb;text-align:center}',
+			'.dsh-pet-bubble-line{margin-top:6px;padding-top:6px;border-top:1px dashed #e5e7eb;color:#7c8db0;font-size:11px;text-align:center}',
+			'.dsh-pet-bubble-spin{display:inline-block;width:11px;height:11px;border:2px solid #dbe7ff;border-top-color:#1f6feb;border-radius:50%;animation:dsh-pet-bubble-spin .6s linear infinite;vertical-align:-1px}',
+			'@keyframes dsh-pet-bubble-spin{to{transform:rotate(360deg)}}',
+			'@keyframes dsh-pet-bubble-pop{from{opacity:0;transform:translateX(-50%) translateY(6px) scale(.92)}to{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}',
+			'@keyframes dsh-pet-bubble-pop-flip{from{opacity:0;transform:translateX(-50%) translateY(-6px) scale(.92)}to{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}',
+			'.dsh-pet-bubble.flip{animation-name:dsh-pet-bubble-pop-flip}',
+			// 按压 Q 弹包装层：包裹舞台，按压时 scale(1.06,0.94)，底边不动（transform-origin 50% 100%）
+			'.dsh-pet-squash{position:relative;width:var(--dsh-pet-size,462px);height:calc(var(--dsh-pet-size,462px)*9/16);transform-origin:50% 100%;transition:transform .18s cubic-bezier(.34,1.56,.64,1)}',
 			// 无障碍：用户系统开启"减少动态效果"时关闭过渡动画
-			'@media (prefers-reduced-motion: reduce){.dsh-pet-video{transition:none}}',
+			'@media (prefers-reduced-motion: reduce){.dsh-pet-video{transition:none}.dsh-pet-bubble{animation:none}.dsh-pet-bubble-spin{animation-duration:1.5s}.dsh-pet-squash{transition:none}}',
 		].join('\n');
 		const cssTag = 'dsh-pet/style.css';
 		// 只在页面还没有这个 style 标签时才注入（防止热重载/重复挂载时重复）
@@ -97,6 +116,45 @@ window.__ModuleLoader__.load({
 		// 多出很多、右边多 ~25px。多数动画实际约 x:214~425（中心≈320），
 		// 取对称整数范围 x:200~440（中心 320），y:50~335 贴近头顶/脚底。
 		const HIT_BOX = { x0: 200, y0: 50, x1: 440, y1: 335 };
+
+		// ---- API 余额气泡 ----
+		// 脑袋命中区（命中层相对比例）：命中层顶部 45% 高 × 中间 70% 宽。
+		// 对应 640×360 画布上的人物头部（y≈50~160、x≈250~390）。
+		const HEAD_RATIO = 0.45;   // 顶部 45% 视为"脑袋区"
+		const HEAD_X_MIN = 0.15;   // 横向 15%~85%
+		const HEAD_X_MAX = 0.85;
+		// 宿主半侧提供的余额查询端点（读 DEEPSEEK_API_KEY → DeepSeek 官方余额 API）
+		const BALANCE_URL = '/pet/balance';
+		// 币种 → 符号（展示用；未知币种直接显示代码）
+		const CURRENCY_SYMBOL = { CNY: '¥', USD: '$', EUR: '€', HKD: 'HK$', JPY: '¥' };
+		// ---- 自动刷新 / 每轮消耗 / 随机台词（仿照 dsh-whale-widget 的能力）----
+		const LAST_TURN_URL = '/pet/last-turn';   // 每轮对话消耗端点（宿主聚合会话事件）
+		const REFRESH_MS = 60000;                 // 余额后台静默刷新周期（鲸鱼挂件同款 60s）
+		const LAST_TURN_POLL_MS = 3000;           // 每轮消耗轮询周期
+		const BUBBLE_AUTO_CLOSE_MS = 12000;       // 余额气泡自动收起时间
+		const COST_BUBBLE_MS = 6000;              // 消耗气泡自动收起时间
+		// 随机台词池（加权；{b}=余额 {u}=今日已用 {p}=峰/谷，渲染时替换）
+		const LINES = [
+			{ w: 22, tpl: '余额还有 {b}，够用够用~' },
+			{ w: 14, tpl: '今日已用 {u}，悠着点哦' },
+			{ w: 12, tpl: '现在是{p}时段' },
+			{ w: 12, tpl: '主人加油！我盯着余额呢' },
+			{ w: 10, tpl: '再聊五毛钱的？' },
+			{ w: 9,  tpl: '我吃 Token 可是很厉害的~' },
+			{ w: 8,  tpl: '呜…余额不多了要省着点' },
+			{ w: 7,  tpl: '充值才能变强！' },
+			{ w: 6,  tpl: '右键可以把我关掉哦' },
+		];
+		// 加权随机抽一条台词
+		const pickLine = () => {
+			const total = LINES.reduce((s, l) => s + l.w, 0);
+			let roll = Math.random() * total;
+			for (const l of LINES) {
+				roll -= l.w;
+				if (roll <= 0) return l.tpl;
+			}
+			return LINES[0].tpl;
+		};
 
 		// 主体待机动画（唯一常驻、循环播放）
 		const IDLE = '待机呼吸休闲';
@@ -200,6 +258,18 @@ window.__ModuleLoader__.load({
 			// 播放序号：每次切换 +1。即使连续选中同一个动画（如待机播完又选待机），
 			// seq 变化也能保证 switchTo 重新执行、视频重新播放（否则 anim 没变 React 不重渲染）。
 			const [seq, setSeq] = useState(0);
+			// ---- API 余额气泡状态 ----
+			const [bubble, setBubble] = useState(null);          // null=关闭 | 'loading' | 'ready' | 'error'
+			const [bubbleData, setBubbleData] = useState(null);  // 余额查询结果（宿主返回的 JSON）
+			const [bubbleFlip, setBubbleFlip] = useState(false); // 宠物贴近视口顶部时气泡翻到下方
+			const balanceReqRef = useRef(0);                     // 查询序号：防止过期响应覆盖新状态
+			const bubbleRef = useRef(bubble);                    // bubble 状态镜像（轮询回调读当前值）
+			bubbleRef.current = bubble;
+			const [line, setLine] = useState(null);              // 当前随机台词
+			const [displayTotal, setDisplayTotal] = useState(null); // 总额滚动动画当前值
+			const displayTotalRef = useRef(null);                // 滚动动画值镜像
+			const costSeqRef = useRef(0);                        // 已消费的最后 lastTurn.seq
+			const squashRef = useRef(null);                      // 按压 Q 弹包装层（.dsh-pet-squash）
 			// ---- DOM 引用 ----
 			const rootRef = useRef(null);  // 根容器（fixed 定位）
 			const stageRef = useRef(null); // 内部舞台（落地对齐）
@@ -506,8 +576,12 @@ window.__ModuleLoader__.load({
 			// 交互范围由 CSS 命中层限定：视频 pointer-events:none（完全穿透），
 			// 命中层 pointer-events:auto 只覆盖人物区域。所以这里的事件天然都在
 			// 人物范围内，无需再做坐标命中检查；命中层之外点击直达下层 UI。
-			// 按下：只记录，不立即切动画
+			// 按下：只记录，不立即切动画（仅左键参与；右键交给 onContextMenu 关闭气泡）
 			const handlePointerDown = (e) => {
+				if (e.button !== 0) return;
+				// 按压 Q 弹（仿鲸鱼挂件：按压时身体压扁、底边不动）
+				const squashEl = squashRef.current;
+				if (squashEl) squashEl.style.transform = 'scale(1.06,0.94)';
 				e.currentTarget.classList.add('dragging'); // 拖拽中抓取光标
 				stopMove(); // 用户交互打断正在进行的移动
 				e.currentTarget.setPointerCapture(e.pointerId); // 捕获指针（拖出元素也能收到 move）
@@ -531,8 +605,10 @@ window.__ModuleLoader__.load({
 				if (!d.dragging) {
 					// 还没超过阈值：仍是"点击候选"，不动
 					if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
-					// 进入拖拽：播放拖拽动画
+					// 进入拖拽：播放拖拽动画，Q 弹回正（拖拽状态身体不再压扁）
 					d.dragging = true;
+					const squashEl = squashRef.current;
+					if (squashEl) squashEl.style.transform = '';
 					setDragging(true);
 					setOnce(true);
 					setAnim(DRAG);
@@ -559,6 +635,9 @@ window.__ModuleLoader__.load({
 				d.active = false;
 				d.dragging = false;
 				e.currentTarget.classList.remove('dragging'); // 结束抓取光标
+				// 松手：Q 弹回正（CSS 过渡负责回弹动画）
+				const squashEl = squashRef.current;
+				if (squashEl) squashEl.style.transform = '';
 				if (wasDragging) {
 					// 抑制拖拽结束后的"幽灵点击"（浏览器在拖完也会发 click）
 					justDraggedRef.current = true;
@@ -580,13 +659,254 @@ window.__ModuleLoader__.load({
 			};
 
 			// ---- 点击回应（仅真点击触发，拖拽后的 click 被忽略） ----
+			// 左键点击"脑袋区"→ 显示/刷新 API 余额气泡；点击身体其他部位 → 原有随机回应动画。
 			const handleClick = (e) => {
+				if (e.button !== 0) return; // 仅左键
 				const d = dragRef.current;
 				if (d.active || d.dragging || justDraggedRef.current) return; // 拖拽中/刚拖完：忽略
+				// 把点击坐标换算成"命中层相对比例"，判断是否落在脑袋区
+				const hitEl = e.currentTarget;
+				const rect = hitEl.getBoundingClientRect();
+				const relX = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0;
+				const relY = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0;
+				if (relY < HEAD_RATIO && relX >= HEAD_X_MIN && relX <= HEAD_X_MAX) {
+					showBalance(); // 已打开则重新查询（顺便刷新余额）
+					return;
+				}
 				if (once && animRef.current !== IDLE) return; // 正在播一次性动画：不打断
 				stopMove(); // 点击打断移动
 				setOnce(true);
 				setAnim(pick(CLICKS)); // 随机一个点击回应动画
+			};
+
+			// ============================================================================
+			// API 余额气泡 —— 查询 / 关闭 / 渲染
+			// ============================================================================
+			// 关闭气泡：使在途请求过期 + 清空状态。右键、点击宠物外区域都会调用。
+			const hideBalance = () => {
+				balanceReqRef.current++; // 使在途响应作废
+				setBubble(null);
+				setBubbleData(null);
+			};
+			// 查询余额：请求宿主半侧的 /pet/balance（余额 + 今日已用 + 峰谷，宿主自动记账）。
+			const showBalance = async () => {
+				const req = ++balanceReqRef.current;
+				setBubble('loading');
+				setBubbleData(null);
+				setLine(pickLine()); // 换一句随机台词
+				try {
+					const resp = await fetch(BALANCE_URL, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+					const json = await resp.json().catch(() => null);
+					if (req !== balanceReqRef.current) return; // 已被关闭/刷新
+					setBubbleData(json || { ok: false, message: '响应解析失败' });
+					setBubble(json && json.ok ? 'ready' : 'error');
+				} catch (err) {
+					if (req !== balanceReqRef.current) return;
+					setBubbleData({ ok: false, message: '网络错误：' + ((err && err.message) || err) });
+					setBubble('error');
+				}
+			};
+			// 右键：禁止浏览器菜单 + 关闭气泡
+			const handleContextMenu = (e) => {
+				e.preventDefault();
+				hideBalance();
+			};
+			// 气泡打开期间：贴近视口顶部时翻转到宠物下方；点击宠物以外区域自动关闭
+			useEffect(() => {
+				if (!bubble) return;
+				const rootEl = rootRef.current;
+				if (rootEl) setBubbleFlip(rootEl.getBoundingClientRect().top < 190);
+				const onDocPointerDown = (ev) => {
+					const el = rootRef.current;
+					if (el && !el.contains(ev.target)) hideBalance();
+				};
+				document.addEventListener('pointerdown', onDocPointerDown, true);
+				return () => document.removeEventListener('pointerdown', onDocPointerDown, true);
+			}, [bubble]);
+
+			// 气泡自动收起：余额 12s / 消耗 6s（仿鲸鱼挂件 5s 自动收起）
+			useEffect(() => {
+				if (!bubble) return;
+				const ms = bubble === 'cost' ? COST_BUBBLE_MS : BUBBLE_AUTO_CLOSE_MS;
+				const t = setTimeout(hideBalance, ms);
+				return () => clearTimeout(t);
+			}, [bubble]);
+
+			// 余额后台静默刷新（60s）：不弹气泡，只让宿主记账并预热缓存，点脑袋时秒开
+			useEffect(() => {
+				const refresh = async () => {
+					try {
+						await fetch(BALANCE_URL, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+					} catch { /* 静默失败，下轮再试 */ }
+				};
+				refresh();
+				const t = setInterval(refresh, REFRESH_MS);
+				return () => clearInterval(t);
+			}, []);
+
+			// 每轮对话消耗轮询（3s）：宿主结算出新的一轮消耗时弹一个小气泡
+			useEffect(() => {
+				const poll = async () => {
+					try {
+						const resp = await fetch(LAST_TURN_URL, { cache: 'no-store' });
+						const json = await resp.json().catch(() => null);
+						if (!json || !json.ok || !json.lastTurn) return;
+						const seq = Number(json.lastTurn.seq);
+						if (seq > costSeqRef.current) {
+							costSeqRef.current = seq;
+							// 其他气泡打开时不打扰（仿鲸鱼：消耗泡泡显示期间不弹普通泡泡）
+							if (!bubbleRef.current) {
+								setBubbleData({
+									kind: 'cost',
+									amount: json.lastTurn.amount,
+									tokens: json.lastTurn.tokens,
+									turn: json.lastTurn.turn,
+								});
+								setBubble('cost');
+							}
+						}
+					} catch { /* 静默 */ }
+				};
+				const t = setInterval(poll, LAST_TURN_POLL_MS);
+				return () => clearInterval(t);
+			}, []);
+
+			// 总额数字滚动动画：余额变化时从旧值缓动到新值（0.9s easeOutCubic）
+			useEffect(() => {
+				if (bubble !== 'ready' || !bubbleData || !bubbleData.data) return;
+				const infos = Array.isArray(bubbleData.data.balance_infos) ? bubbleData.data.balance_infos : [];
+				const num = (x) => (x && x.total_balance !== undefined ? Number(x.total_balance) : NaN);
+				const info = infos.find((x) => x && x.currency === 'CNY' && num(x) > 0)
+					|| infos.find((x) => num(x) > 0)
+					|| infos.find((x) => x && x.currency === 'CNY')
+					|| infos[0];
+				if (!info || info.total_balance === undefined) return;
+				const target = num(info);
+				if (!isFinite(target)) return;
+				const from = typeof displayTotalRef.current === 'number' && isFinite(displayTotalRef.current)
+					? displayTotalRef.current : target;
+				if (from === target) { displayTotalRef.current = target; return; }
+				const start = performance.now();
+				const dur = 900;
+				let raf = 0;
+				const step = (now) => {
+					const t = Math.min(1, (now - start) / dur);
+					const eased = 1 - Math.pow(1 - t, 3);
+					const v = from + (target - from) * eased;
+					displayTotalRef.current = v;
+					setDisplayTotal(v);
+					if (t < 1) raf = requestAnimationFrame(step);
+					else displayTotalRef.current = target;
+				};
+				raf = requestAnimationFrame(step);
+				return () => cancelAnimationFrame(raf);
+			}, [bubble, bubbleData]);
+
+			// 点击气泡：消耗泡泡 → 关闭；余额/错误泡泡 → 换台词并重新查询（顺便刷新余额）
+			const handleBubbleClick = () => {
+				if (bubble === 'cost') { hideBalance(); return; }
+				if (bubble === 'ready' || bubble === 'error') {
+					setLine(pickLine());
+					showBalance();
+				}
+			};
+
+			// 金额格式化（滚动动画中间值会有很多小数位）
+			const fmtMoney = (v) => {
+				const n = Number(v);
+				return isFinite(n) ? n.toFixed(2) : String(v);
+			};
+			// 填充台词模板：{b}=余额 {u}=今日已用 {p}=峰/谷
+			const fillLine = () => {
+				if (!line) return '';
+				const ready = bubble === 'ready' && bubbleData && bubbleData.ok;
+				const infos = ready && Array.isArray(bubbleData.data.balance_infos) ? bubbleData.data.balance_infos : [];
+				const num = (x) => (x && x.total_balance !== undefined ? Number(x.total_balance) : NaN);
+				const info = infos.find((x) => x && x.currency === 'CNY' && num(x) > 0)
+					|| infos.find((x) => num(x) > 0)
+					|| infos.find((x) => x && x.currency === 'CNY')
+					|| infos[0];
+				const sym = info ? (CURRENCY_SYMBOL[info.currency] || (info.currency + ' ')) : '¥';
+				const b = ready && info ? sym + fmtMoney(displayTotal !== null ? displayTotal : info.total_balance) : '--';
+				const u = ready && typeof bubbleData.todayUsage === 'number' ? sym + bubbleData.todayUsage.toFixed(2) : '--';
+				const p = ready ? (bubbleData.isPeak ? '高峰时段，烧钱警告！' : '闲时时段，价格便宜~') : '';
+				return String(line)
+					.replace('{b}', b)
+					.replace('{u}', u)
+					.replace('{p}', p);
+			};
+			// 气泡内容：按状态渲染（loading / ready / error / cost）
+			const buildBubbleBody = () => {
+				const rows = [];
+				if (bubble === 'loading') {
+					rows.push(h('div', { className: 'dsh-pet-bubble-row', children: [
+						h('span', { className: 'dsh-pet-bubble-spin' }),
+						h('span', { children: '查询中…' }),
+					] }));
+				} else if (bubble === 'ready' && bubbleData && bubbleData.data) {
+					const infos = Array.isArray(bubbleData.data.balance_infos) ? bubbleData.data.balance_infos : [];
+					if (bubbleData.data.is_available === false) {
+						rows.push(h('div', { className: 'dsh-pet-bubble-msg', children: '账户当前不可用' }));
+					}
+					infos.forEach((info, index) => {
+						const sym = CURRENCY_SYMBOL[info.currency] || (info.currency + ' ');
+						if (infos.length > 1) {
+							rows.push(h('div', { className: 'dsh-pet-bubble-row', children: [
+								h('span', { children: '币种' }), h('b', { children: info.currency }),
+							] }));
+						}
+						// 总额：主币种（第一个）用滚动动画值
+						const totalShown = index === 0 && displayTotal !== null ? displayTotal : info.total_balance;
+						rows.push(h('div', { className: 'dsh-pet-bubble-row', children: [
+							h('span', { children: '总额' }),
+							h('b', { className: 'amount', children: sym + fmtMoney(totalShown) }),
+						] }));
+						rows.push(h('div', { className: 'dsh-pet-bubble-row', children: [
+							h('span', { children: '充值' }), h('b', { children: sym + fmtMoney(info.topped_up_balance ?? 0) }),
+						] }));
+						rows.push(h('div', { className: 'dsh-pet-bubble-row', children: [
+							h('span', { children: '赠送' }), h('b', { children: sym + fmtMoney(info.granted_balance ?? 0) }),
+						] }));
+					});
+					if (infos.length === 0) {
+						rows.push(h('div', { className: 'dsh-pet-bubble-msg', children: '未返回余额数据' }));
+					}
+					// 今日已用 + 峰谷（记账=余额差值；实时=平台官方用量，与平台页一致）
+					const usageModeHint = bubbleData.usageMode === 'token' ? '（实时）' : '（记账）';
+					rows.push(h('div', { className: 'dsh-pet-bubble-row', children: [
+						h('span', { children: '今日已用' }),
+						h('b', { children: (CURRENCY_SYMBOL[bubbleData.currency] || '¥') + fmtMoney(bubbleData.todayUsage ?? 0) + usageModeHint }),
+					] }));
+					rows.push(h('div', { className: 'dsh-pet-bubble-row', children: [
+						h('span', { children: '时段' }),
+						h('b', { children: bubbleData.isPeak ? '高峰（烧钱中）' : '闲时（便宜）' }),
+					] }));
+					// 随机台词
+					if (line) {
+						rows.push(h('div', { className: 'dsh-pet-bubble-line', children: fillLine() }));
+					}
+				} else if (bubble === 'cost' && bubbleData) {
+					// 每轮对话消耗泡泡
+					rows.push(h('div', { className: 'dsh-pet-bubble-row', children: [
+						h('span', { children: '本轮对话' }),
+						h('b', { className: 'amount', children: '¥' + Number(bubbleData.amount || 0).toFixed(2) }),
+					] }));
+					if (bubbleData.tokens) {
+						rows.push(h('div', { className: 'dsh-pet-bubble-row', children: [
+							h('span', { children: 'Tokens' }), h('b', { children: String(bubbleData.tokens) }),
+						] }));
+					}
+				} else {
+					const msg = bubbleData && bubbleData.message
+						? bubbleData.message
+						: (bubbleData && bubbleData.code === 'NO_API_KEY' ? '未配置 DEEPSEEK_API_KEY' : '余额查询失败');
+					rows.push(h('div', { className: 'dsh-pet-bubble-msg', children: msg }));
+				}
+				return [
+					h('div', { className: 'dsh-pet-bubble-title', children: bubble === 'cost' ? '💬 对话消耗' : '💳 API 余额' }),
+					...rows,
+					h('div', { className: 'dsh-pet-bubble-hint', children: bubble === 'cost' ? '右键关闭' : '右键关闭 · 点击换台词' }),
+				];
 			};
 
 			// ============================================================================
@@ -635,6 +955,7 @@ window.__ModuleLoader__.load({
 				onMouseEnter: (e) => { if (!dragRef.current.active) e.currentTarget.style.cursor = 'grab'; },
 				onMouseLeave: (e) => { if (!dragRef.current.active) e.currentTarget.style.cursor = 'default'; },
 				onClick: handleClick,
+				onContextMenu: handleContextMenu, // 右键：关闭余额气泡 + 屏蔽浏览器菜单
 				onPointerDown: handlePointerDown,
 				onPointerMove: handlePointerMove,
 				onPointerUp: handlePointerUp,
@@ -642,7 +963,7 @@ window.__ModuleLoader__.load({
 				title: 'dsh-pet',
 			};
 
-			// 渲染树：root > stage > [video A, video B, 命中层]
+			// 渲染树：root > [squash > stage > [video A, video B, 命中层], 余额气泡]
 			// A 初始带 is-front（显示），B 隐藏待命；命中层在最上层承载交互
 			return h('div', {
 				ref: rootRef,
@@ -650,16 +971,33 @@ window.__ModuleLoader__.load({
 				'data-corner': corner,   // CSS 决定默认角落
 				'data-facing': facing,   // CSS 决定是否镜像
 				style: Object.assign({ '--dsh-pet-size': size + 'px' }, rootStyle),
-				children: h('div', {
-					ref: stageRef,
-					className: 'dsh-pet-stage',
-					style: stageStyle,
-					children: [
-						h('video', Object.assign({}, commonVideoProps, { ref: videoARef, className: 'dsh-pet-video is-front' })),
-						h('video', Object.assign({}, commonVideoProps, { ref: videoBRef, className: 'dsh-pet-video' })),
-						h('div', hitProps),
-					],
-				}),
+				children: [
+					// 按压 Q 弹包装层（transform-origin 底部，按下压扁、松手回弹）
+					h('div', {
+						ref: squashRef,
+						className: 'dsh-pet-squash',
+						children: h('div', {
+							ref: stageRef,
+							className: 'dsh-pet-stage',
+							style: stageStyle,
+							children: [
+								h('video', Object.assign({}, commonVideoProps, { ref: videoARef, className: 'dsh-pet-video is-front' })),
+								h('video', Object.assign({}, commonVideoProps, { ref: videoBRef, className: 'dsh-pet-video' })),
+								h('div', hitProps),
+							],
+						}),
+					}),
+					// API 余额/消耗气泡：打开时渲染在舞台上方（贴近视口顶部时翻转到下方）
+					bubble !== null && h('div', {
+						className: 'dsh-pet-bubble' + (bubbleFlip ? ' flip' : ''),
+						onContextMenu: handleContextMenu, // 在气泡上右键同样关闭
+						onClick: handleBubbleClick,        // 点击换台词/刷新；消耗泡泡点击关闭
+						children: [
+							h('div', { className: 'dsh-pet-bubble-tail' }),
+							h('div', { className: 'dsh-pet-bubble-body', children: buildBubbleBody() }),
+						],
+					}),
+				],
 			});
 		}
 
