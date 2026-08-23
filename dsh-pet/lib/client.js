@@ -26,7 +26,7 @@
  */
 window.__ModuleLoader__.load({
 	// 插件唯一 ID，必须与 package.json 里声明的一致
-	id: 'dsh-pet',
+	id: '@001-orz/dsh-pet',
 
 	// factory：浏览器加载本 bundle 时执行，返回插件的导出
 	factory: (require) => {

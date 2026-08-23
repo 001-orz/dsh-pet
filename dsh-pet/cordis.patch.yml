@@ -23,7 +23,7 @@
 
 - insert:
     - id: pet                     # 插件行 id（唯一）
-      name: 'dsh-pet'             # 模块名：解析到 lib/index.js
+      name: '@001-orz/dsh-pet'    # 模块名：解析到 lib/index.js
       config:
         size: 260                 # 宠物显示高度（px）—— 目前未传到 client
         position: bottom-right    # 默认角落位置 —— 目前未传到 client

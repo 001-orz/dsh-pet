@@ -34,7 +34,16 @@ let resolveDshHome;
 try {
   ({ resolveDshHome } = await import('@deepseek-ai/dsh-home-paths'));
 } catch {
-  resolveDshHome = () => (process.env.DSH_PET_TEST_HOME || 'C:/Users/HP/.dsh');
+  // 兜底：@deepseek-ai/dsh-home-paths 未安装时，按以下顺序确定主目录
+  resolveDshHome = () => {
+    if (process.env.DSH_HOME) return process.env.DSH_HOME;
+    if (process.env.DSH_PET_TEST_HOME) return process.env.DSH_PET_TEST_HOME;
+    // 桌面版 DSH Desktop（Windows）默认数据目录
+    if (process.platform === 'win32') {
+      return 'C:/Users/HP/AppData/Roaming/dsh-desktop/harness';
+    }
+    return (process.env.HOME || '') + '/.dsh';
+  };
 }
 
 // 插件行 id（与 cordis.patch.yml 一致）
